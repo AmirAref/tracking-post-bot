@@ -36,6 +36,14 @@ async def start_callback(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     )
 
 
+async def donation_callback(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
+    logger.debug("start command received.")
+    await update.message.reply_text(
+        text=messages.DONATION_MESSAGE,
+        reply_to_message_id=update.message.id,
+    )
+
+
 async def tracking_callback(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     # check the code
     code: str = update.message.text
@@ -159,6 +167,7 @@ if __name__ == "__main__":
     app.add_handlers(
         [
             CommandHandler(command="start", callback=start_callback),
+            CommandHandler(command="donate", callback=donation_callback),
             MessageHandler(
                 filters=filters.TEXT & filters.ChatType.PRIVATE,
                 callback=tracking_callback,
