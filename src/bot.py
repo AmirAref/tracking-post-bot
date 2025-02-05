@@ -1,3 +1,6 @@
+import logging
+import httpx
+from post_tracker import PostTracker, TrackingResult
 from post_tracker.errors import TrackingNotFoundError
 
 from telegram import (
@@ -22,9 +25,30 @@ from src.settings import settings
 from src.utils import create_tracking_message, persian_to_en_numbers
 from src.logger import get_logger
 from src import messages
+from tenacity import (
+    before_log,
+    retry,
+    stop_after_attempt,
+    wait_random,
+    retry_if_exception_type,
+)
 
 # ------------------------------
 logger = get_logger(name="post-tracker-bot")
+
+
+@retry(
+    retry=retry_if_exception_type((httpx.TimeoutException, httpx.ConnectError)),
+    stop=stop_after_attempt(3),
+    wait=wait_random(1, 3),
+    before=before_log(logger=logger, log_level=logging.DEBUG),
+    reraise=True,
+)
+async def get_tracking_data(
+    tracker_app: PostTracker, tracking_code: str
+) -> TrackingResult:
+    tracking_data = await tracker_app.get_tracking_post(tracking_code=tracking_code)
+    return tracking_data
 
 
 # function handler
@@ -41,6 +65,7 @@ async def donation_callback(update: Update, _: ContextTypes.DEFAULT_TYPE) -> Non
     await update.message.reply_text(
         text=messages.DONATION_MESSAGE,
         reply_to_message_id=update.message.id,
+        disable_web_page_preview=True,
     )
 
 
@@ -66,7 +91,9 @@ async def tracking_callback(update: Update, _: ContextTypes.DEFAULT_TYPE) -> Non
         logger.info(f"start get tracking data for code : {code}")
         tracker_app = post_tracker_wrapper()
         # get data from post-tracker
-        tracking_data = await tracker_app.get_tracking_post(tracking_code=code)
+        tracking_data = await get_tracking_data(
+            tracker_app=tracker_app, tracking_code=code
+        )
         logger.info(f"tracking data for code : {code} received successfully !")
         # create reply keyboard markap
         keyboard = [
@@ -108,7 +135,9 @@ async def update_details_code_callbackquery(
         logger.info(f"update tracking data for code : {tracking_code}")
         tracker_app = post_tracker_wrapper()
         # get data from post-tracker
-        tracking_data = await tracker_app.get_tracking_post(tracking_code=tracking_code)
+        tracking_data = await get_tracking_data(
+            tracker_app=tracker_app, tracking_code=tracking_code
+        )
         keyboard = [
             [
                 InlineKeyboardButton(
